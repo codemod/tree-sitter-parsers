@@ -143,7 +143,9 @@ while IFS= read -r grammar_file; do
     
     # Create output directory structure
     PARSER_OUTPUT_DIR="$OUTPUT_DIR/$lang_variant/$COMMIT_SHA"
+    LATEST_OUTPUT_DIR="$OUTPUT_DIR/$lang_variant/latest"
     mkdir -p "$PARSER_OUTPUT_DIR"
+    mkdir -p "$LATEST_OUTPUT_DIR"
     
     # Copy built files
     if [ -f "parser.so" ]; then
@@ -155,6 +157,8 @@ while IFS= read -r grammar_file; do
         cp "parser.wasm" "$PARSER_OUTPUT_DIR/parser.wasm"
         echo "WebAssembly saved: $PARSER_OUTPUT_DIR/parser.wasm"
     fi
+
+    cp -r "$PARSER_OUTPUT_DIR/*" "$LATEST_OUTPUT_DIR"
     
     # Return to repo root
     cd "$TEMP_DIR/repo"

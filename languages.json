@@ -22,7 +22,7 @@
     },
     "angular": {
       "repo": "https://github.com/codemod-com/tree-sitter-angular",
-      "ref": "master"
+      "ref": "main"
     },
     "java": {
       "repo": "https://github.com/tree-sitter/tree-sitter-java",
@@ -30,7 +30,7 @@
     },
     "kotlin": {
       "repo": "https://github.com/fwcd/tree-sitter-kotlin",
-      "ref": "master"
+      "ref": "main"
     },
     "scala": {
       "repo": "https://github.com/tree-sitter/tree-sitter-scala",
@@ -70,7 +70,7 @@
     },
     "elixir": {
       "repo": "https://github.com/elixir-lang/tree-sitter-elixir",
-      "ref": "master"
+      "ref": "main"
     }
   }
 } 

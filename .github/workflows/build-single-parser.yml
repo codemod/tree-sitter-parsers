@@ -4,10 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       language:
-        description: 'Language to build parser for'
+        description: "Language to build parser for"
         required: true
         type: choice
         options:
+          - all
           - javascript
           - typescript
           - tsx
@@ -27,10 +28,10 @@ on:
           - ruby
           - elixir
       platforms:
-        description: 'Platforms to build for'
+        description: "Platforms to build for"
         required: true
         type: choice
-        default: 'all'
+        default: "all"
         options:
           - all
           - linux-only
@@ -41,60 +42,79 @@ env:
   TREE_SITTER_ABI_VERSION: "15"
 
 jobs:
-  build:
-    name: Build ${{ inputs.language }} on ${{ matrix.os }} (${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x64
-            platform: linux
-          - os: ubuntu-latest
-            arch: arm64
-            platform: linux
-          - os: macos-latest
-            arch: x64
-            platform: darwin
-          - os: macos-latest
-            arch: arm64
-            platform: darwin
-          - os: windows-latest
-            arch: x64
-            platform: win32
-    
+  setup:
+    name: Setup Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.setup-matrix.outputs.matrix }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
+      - name: Setup matrix
+        id: setup-matrix
+        run: |
+          # Define platform configurations
+          platforms='[
+            {"os": "ubuntu-latest", "arch": "x64", "platform": "linux"},
+            {"os": "ubuntu-latest", "arch": "arm64", "platform": "linux"},
+            {"os": "macos-latest", "arch": "x64", "platform": "darwin"},
+            {"os": "macos-latest", "arch": "arm64", "platform": "darwin"},
+            {"os": "windows-latest", "arch": "x64", "platform": "win32"}
+          ]'
+
+          if [ "${{ inputs.language }}" == "all" ]; then
+            # Extract all language names from languages.json
+            languages=$(jq -r '.languages | keys' languages.json)
+          else
+            # Single language
+            languages='["${{ inputs.language }}"]'
+          fi
+
+          # Create matrix combinations
+          matrix=$(echo "$languages" | jq -c --argjson platforms "$platforms" '[.[] as $lang | $platforms[] | . + {"language": $lang}]')
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  build:
+    name: Build ${{ matrix.language }} on ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.setup.outputs.matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Set up QEMU (for ARM64 on Linux)
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-      
+          node-version: "18"
+
       - name: Set up tree-sitter CLI
         uses: tree-sitter/setup-action/cli@v2
-      
+
       - name: Extract language info
         id: lang-info
         shell: bash
         run: |
-          repo_url=$(jq -r ".languages[\"${{ inputs.language }}\"].repo" languages.json)
-          ref=$(jq -r ".languages[\"${{ inputs.language }}\"].ref" languages.json)
+          repo_url=$(jq -r ".languages[\"${{ matrix.language }}\"].repo" languages.json)
+          ref=$(jq -r ".languages[\"${{ matrix.language }}\"].ref" languages.json)
           echo "repo_url=$repo_url" >> $GITHUB_OUTPUT
           echo "ref=$ref" >> $GITHUB_OUTPUT
-      
+
       - name: Make scripts executable
         shell: bash
         run: chmod +x scripts/*.sh
-      
+
       - name: Build parser (Linux ARM64)
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
@@ -103,23 +123,23 @@ jobs:
             node:18-alpine \
             sh -c "
               apk add --no-cache git bash tree-sitter-cli build-base &&
-              ./scripts/build-parser.sh '${{ inputs.language }}' '${{ steps.lang-info.outputs.repo_url }}' '${{ steps.lang-info.outputs.ref }}' 'artifacts'
+              ./scripts/build-parser.sh '${{ matrix.language }}' '${{ steps.lang-info.outputs.repo_url }}' '${{ steps.lang-info.outputs.ref }}' 'artifacts'
             "
         env:
           TREE_SITTER_ABI_VERSION: ${{ env.TREE_SITTER_ABI_VERSION }}
-      
+
       - name: Build parser (Native)
         if: matrix.os != 'ubuntu-latest' || matrix.arch != 'arm64'
         shell: bash
         run: |
-          ./scripts/build-parser.sh "${{ inputs.language }}" "${{ steps.lang-info.outputs.repo_url }}" "${{ steps.lang-info.outputs.ref }}" "artifacts"
+          ./scripts/build-parser.sh "${{ matrix.language }}" "${{ steps.lang-info.outputs.repo_url }}" "${{ steps.lang-info.outputs.ref }}" "artifacts"
         env:
           TREE_SITTER_ABI_VERSION: ${{ env.TREE_SITTER_ABI_VERSION }}
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: parser-${{ inputs.language }}-${{ matrix.platform }}-${{ matrix.arch }}
+          name: parser-${{ matrix.language }}-${{ matrix.platform }}-${{ matrix.arch }}
           path: artifacts/
           retention-days: 7
 
@@ -131,24 +151,24 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts-download/
-          pattern: parser-${{ inputs.language }}-*
+          pattern: parser-*-*
           merge-multiple: true
-      
+
       - name: Configure AWS Credentials for S3 Upload
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
-      
+
       - name: Upload parsers to S3
         run: |
           # Upload all parser files to S3
@@ -167,10 +187,14 @@ jobs:
               --cache-control "public, max-age=31536000" \
               --content-type "application/octet-stream"
           done
-      
+
       - name: Summary
         run: |
-          echo "## 🎉 Build Summary for ${{ inputs.language }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.language }}" == "all" ]; then
+            echo "## 🎉 Build Summary for All Languages" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## 🎉 Build Summary for ${{ inputs.language }}" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Built Files" >> $GITHUB_STEP_SUMMARY
           find artifacts-download/ -name "*.so" -o -name "*.dylib" -o -name "*.dll" -o -name "*.wasm" | sort | while read file; do
@@ -178,4 +202,8 @@ jobs:
           done
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### S3 Location" >> $GITHUB_STEP_SUMMARY
-          echo "Files uploaded to: \`s3://${{ secrets.S3_BUCKET_NAME }}/tree-sitter/parsers/tree-sitter-${{ inputs.language }}/\`" >> $GITHUB_STEP_SUMMARY 
+          if [ "${{ inputs.language }}" == "all" ]; then
+            echo "Files uploaded to: \`s3://${{ secrets.S3_BUCKET_NAME }}/tree-sitter/parsers/\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Files uploaded to: \`s3://${{ secrets.S3_BUCKET_NAME }}/tree-sitter/parsers/tree-sitter-${{ inputs.language }}/\`" >> $GITHUB_STEP_SUMMARY
+          fi
