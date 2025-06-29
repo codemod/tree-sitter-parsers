@@ -54,13 +54,13 @@ jobs:
       - name: Setup matrix
         id: setup-matrix
         run: |
-          # Define platform configurations
+          # Define platform configurations following Python example pattern
           platforms='[
-            {"os": "ubuntu-latest", "arch": "x64", "platform": "linux"},
-            {"os": "ubuntu-latest", "arch": "arm64", "platform": "linux"},
-            {"os": "macos-latest", "arch": "x64", "platform": "darwin"},
-            {"os": "macos-latest", "arch": "arm64", "platform": "darwin"},
-            {"os": "windows-latest", "arch": "x64", "platform": "win32"}
+            {"os": "ubuntu-latest", "arch": "x64", "platform": "linux", "cross_compile": false},
+            {"os": "ubuntu-latest", "arch": "arm64", "platform": "linux", "cross_compile": true, "qemu_arch": "arm64"},
+            {"os": "macos-latest", "arch": "arm64", "platform": "darwin", "cross_compile": false},
+            {"os": "macos-latest", "arch": "x64", "platform": "darwin", "cross_compile": true},
+            {"os": "windows-latest", "arch": "x64", "platform": "win32", "cross_compile": false}
           ]'
 
           if [ "${{ inputs.language }}" == "all" ]; then
@@ -88,11 +88,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU (for ARM64 on Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+      - name: Set up QEMU (for cross-compilation)
+        if: matrix.qemu_arch != '' && matrix.qemu_arch != null
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: arm64
+          platforms: ${{ matrix.qemu_arch }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -115,6 +115,10 @@ jobs:
         shell: bash
         run: chmod +x scripts/*.sh
 
+      - name: Install GNU coreutils (macOS only)
+        if: matrix.platform == 'darwin'
+        run: brew install coreutils
+
       - name: Build parser (Linux ARM64)
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
@@ -123,7 +127,7 @@ jobs:
             node:18-alpine \
             sh -c "
               apk add --no-cache git bash tree-sitter-cli build-base &&
-              ./scripts/build-parser.sh '${{ matrix.language }}' '${{ steps.lang-info.outputs.repo_url }}' '${{ steps.lang-info.outputs.ref }}' 'artifacts' '${{ matrix.arch }}' '${{ matrix.platform }}'
+              ./scripts/build-parser.sh '${{ matrix.language }}' '${{ steps.lang-info.outputs.repo_url }}' '${{ steps.lang-info.outputs.ref }}' 'artifacts' '${{ matrix.arch }}' '${{ matrix.platform }}' '${{ matrix.cross_compile }}'
             "
         env:
           TREE_SITTER_ABI_VERSION: ${{ env.TREE_SITTER_ABI_VERSION }}
@@ -132,14 +136,14 @@ jobs:
         if: matrix.os != 'ubuntu-latest' || matrix.arch != 'arm64'
         shell: bash
         run: |
-          ./scripts/build-parser.sh "${{ matrix.language }}" "${{ steps.lang-info.outputs.repo_url }}" "${{ steps.lang-info.outputs.ref }}" "artifacts" "${{ matrix.arch }}" "${{ matrix.platform }}"
+          ./scripts/build-parser.sh "${{ matrix.language }}" "${{ steps.lang-info.outputs.repo_url }}" "${{ steps.lang-info.outputs.ref }}" "artifacts" "${{ matrix.arch }}" "${{ matrix.platform }}" "${{ matrix.cross_compile }}"
         env:
           TREE_SITTER_ABI_VERSION: ${{ env.TREE_SITTER_ABI_VERSION }}
           # Set cross-compilation flags for macOS x86_64
-          CFLAGS: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '-arch x86_64' || '' }}
-          CXXFLAGS: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '-arch x86_64' || '' }}
-          LDFLAGS: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '-arch x86_64' || '' }}
-          ARCHFLAGS: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '-arch x86_64' || '' }}
+          CFLAGS: ${{ matrix.cross_compile == true && matrix.platform == 'darwin' && '-arch x86_64' || '' }}
+          CXXFLAGS: ${{ matrix.cross_compile == true && matrix.platform == 'darwin' && '-arch x86_64' || '' }}
+          LDFLAGS: ${{ matrix.cross_compile == true && matrix.platform == 'darwin' && '-arch x86_64' || '' }}
+          ARCHFLAGS: ${{ matrix.cross_compile == true && matrix.platform == 'darwin' && '-arch x86_64' || '' }}
 
       - name: Import Code Signing Certificate (macOS only)
         if: matrix.platform == 'darwin'
@@ -181,9 +185,8 @@ jobs:
         if: matrix.platform == 'darwin'
         shell: bash
         run: |
-          cd artifacts/
-          zip -r ../parsers-${{ matrix.language }}-${{ matrix.platform }}-${{ matrix.arch }}.zip ./*.dylib
-          cd ..
+          # Create zip with all dylib files found recursively in artifacts/
+          find artifacts/ -name "*.dylib" -exec zip parsers-${{ matrix.language }}-${{ matrix.platform }}-${{ matrix.arch }}.zip {} +
 
       - name: Submit for Notarization (macOS only)
         if: matrix.platform == 'darwin'

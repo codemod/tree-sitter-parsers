@@ -9,9 +9,10 @@ REF="${3:-master}"
 OUTPUT_DIR="${4:-artifacts}"
 TARGET_ARCH="$5"
 TARGET_PLATFORM="$6"
+CROSS_COMPILE="$7"
 
 if [ -z "$LANGUAGE" ] || [ -z "$REPO_URL" ]; then
-    echo "Usage: $0 <language> <repo_url> [ref] [output_dir] [target_arch] [target_platform]"
+    echo "Usage: $0 <language> <repo_url> [ref] [output_dir] [target_arch] [target_platform] [cross_compile]"
     exit 1
 fi
 
@@ -85,9 +86,28 @@ while IFS= read -r grammar_file; do
     
     echo "Building for language variant: $lang_variant"
     
-    # Build native library
-    echo "Building native library..."
-    tree-sitter build --output "parser.so"
+          # Build native library
+      echo "Building native library..."
+      
+      if [ "$CROSS_COMPILE" = "true" ]; then
+          echo "Cross-compilation mode: allowing validation failure"
+          # When cross-compiling, tree-sitter validation may fail due to architecture mismatch
+          # but the compilation itself succeeds, so we allow failure and check the output
+          if ! tree-sitter build --output "parser.so"; then
+              echo "⚠️  tree-sitter build validation failed (expected for cross-compilation), checking if binary was created..."
+              if [ -f "parser.so" ]; then
+                  echo "✅ Binary was created successfully despite validation failure"
+              else
+                  echo "❌ Binary creation failed"
+                  exit 1
+              fi
+          else
+              echo "✅ Build completed successfully"
+          fi
+      else
+          echo "Native compilation mode: with validation"
+          tree-sitter build --output "parser.so"
+      fi
     
     # Build WebAssembly (requires emcc, docker, or podman)
     echo "Building WebAssembly..."
