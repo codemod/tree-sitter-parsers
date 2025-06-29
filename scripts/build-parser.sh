@@ -7,9 +7,11 @@ LANGUAGE="$1"
 REPO_URL="$2"
 REF="${3:-master}"
 OUTPUT_DIR="${4:-artifacts}"
+TARGET_ARCH="$5"
+TARGET_PLATFORM="$6"
 
 if [ -z "$LANGUAGE" ] || [ -z "$REPO_URL" ]; then
-    echo "Usage: $0 <language> <repo_url> [ref] [output_dir]"
+    echo "Usage: $0 <language> <repo_url> [ref] [output_dir] [target_arch] [target_platform]"
     exit 1
 fi
 
@@ -111,28 +113,39 @@ while IFS= read -r grammar_file; do
     fi
     
     # Determine platform and architecture
-    PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
-    ARCH=$(uname -m)
+    if [ -n "$TARGET_PLATFORM" ] && [ -n "$TARGET_ARCH" ]; then
+        # Use provided target platform and architecture
+        PLATFORM="$TARGET_PLATFORM"
+        ARCH="$TARGET_ARCH"
+    else
+        # Auto-detect from host system
+        PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        
+        # Normalize architecture names
+        case "$ARCH" in
+            x86_64|amd64) ARCH="x64" ;;
+            aarch64|arm64) ARCH="arm64" ;;
+            armv7l) ARCH="arm" ;;
+        esac
+        
+        # Normalize platform names
+        case "$PLATFORM" in
+            linux) PLATFORM="linux" ;;
+            darwin) PLATFORM="darwin" ;;
+            mingw*|cygwin*|msys*) PLATFORM="win32" ;;
+        esac
+    fi
     
-    # Normalize architecture names
-    case "$ARCH" in
-        x86_64|amd64) ARCH="x64" ;;
-        aarch64|arm64) ARCH="arm64" ;;
-        armv7l) ARCH="arm" ;;
-    esac
-    
-    # Normalize platform names and set file extension
+    # Set file extension based on platform
     case "$PLATFORM" in
         linux)
-            PLATFORM="linux"
             EXT="so"
             ;;
         darwin)
-            PLATFORM="darwin"
             EXT="dylib"
             ;;
-        mingw*|cygwin*|msys*)
-            PLATFORM="win32"
+        win32)
             EXT="dll"
             ;;
         *)
@@ -158,7 +171,13 @@ while IFS= read -r grammar_file; do
         echo "WebAssembly saved: $PARSER_OUTPUT_DIR/parser.wasm"
     fi
 
-    cp -r "$PARSER_OUTPUT_DIR/*" "$LATEST_OUTPUT_DIR"
+    # Copy files to latest directory, only if there are files to copy
+    if ls "$PARSER_OUTPUT_DIR"/* 1> /dev/null 2>&1; then
+        cp -r "$PARSER_OUTPUT_DIR"/* "$LATEST_OUTPUT_DIR/"
+        echo "Files copied to latest directory: $LATEST_OUTPUT_DIR"
+    else
+        echo "No files to copy to latest directory"
+    fi
     
     # Return to repo root
     cd "$TEMP_DIR/repo"

@@ -123,7 +123,7 @@ jobs:
             node:18-alpine \
             sh -c "
               apk add --no-cache git bash tree-sitter-cli build-base &&
-              ./scripts/build-parser.sh '${{ matrix.language }}' '${{ steps.lang-info.outputs.repo_url }}' '${{ steps.lang-info.outputs.ref }}' 'artifacts'
+              ./scripts/build-parser.sh '${{ matrix.language }}' '${{ steps.lang-info.outputs.repo_url }}' '${{ steps.lang-info.outputs.ref }}' 'artifacts' '${{ matrix.arch }}' '${{ matrix.platform }}'
             "
         env:
           TREE_SITTER_ABI_VERSION: ${{ env.TREE_SITTER_ABI_VERSION }}
@@ -132,9 +132,74 @@ jobs:
         if: matrix.os != 'ubuntu-latest' || matrix.arch != 'arm64'
         shell: bash
         run: |
-          ./scripts/build-parser.sh "${{ matrix.language }}" "${{ steps.lang-info.outputs.repo_url }}" "${{ steps.lang-info.outputs.ref }}" "artifacts"
+          ./scripts/build-parser.sh "${{ matrix.language }}" "${{ steps.lang-info.outputs.repo_url }}" "${{ steps.lang-info.outputs.ref }}" "artifacts" "${{ matrix.arch }}" "${{ matrix.platform }}"
         env:
           TREE_SITTER_ABI_VERSION: ${{ env.TREE_SITTER_ABI_VERSION }}
+          # Set cross-compilation flags for macOS x86_64
+          CFLAGS: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '-arch x86_64' || '' }}
+          CXXFLAGS: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '-arch x86_64' || '' }}
+          LDFLAGS: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '-arch x86_64' || '' }}
+          ARCHFLAGS: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '-arch x86_64' || '' }}
+
+      - name: Import Code Signing Certificate (macOS only)
+        if: matrix.platform == 'darwin'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Sign dylib files (macOS only)
+        if: matrix.platform == 'darwin'
+        env:
+          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          find artifacts/ -name "*.dylib" | while read -r dylib_file; do
+            echo "Signing: $dylib_file"
+            # Set timeout for codesign (5 minutes)
+            timeout 300 codesign \
+              --force \
+              --timestamp \
+              --sign "$APPLE_IDENTITY" \
+              --team-id "$APPLE_TEAM_ID" \
+              --options runtime \
+              --verbose \
+              "$dylib_file"
+          done
+
+      - name: Verify Signing (macOS only)
+        if: matrix.platform == 'darwin'
+        shell: bash
+        run: |
+          find artifacts/ -name "*.dylib" | while read -r dylib_file; do
+            echo "Verifying signature for: $dylib_file"
+            codesign --verify --deep --verbose=4 "$dylib_file"
+          done
+
+      - name: Create ZIP for Notarization (macOS only)
+        if: matrix.platform == 'darwin'
+        shell: bash
+        run: |
+          cd artifacts/
+          zip -r ../parsers-${{ matrix.language }}-${{ matrix.platform }}-${{ matrix.arch }}.zip ./*.dylib
+          cd ..
+
+      - name: Submit for Notarization (macOS only)
+        if: matrix.platform == 'darwin'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          # Set timeout for notarization (15 minutes)
+          timeout 900 xcrun notarytool submit parsers-${{ matrix.language }}-${{ matrix.platform }}-${{ matrix.arch }}.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait \
+            --verbose
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
