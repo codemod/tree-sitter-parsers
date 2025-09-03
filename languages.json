@@ -77,7 +77,7 @@
       "ref": "master"
     },
     "yaml": {
-      "repo": "https://github.com/ikatyang/tree-sitter-yaml",
+      "repo": "https://github.com/tree-sitter-grammars/tree-sitter-yaml",
       "ref": "master"
     }
   }
