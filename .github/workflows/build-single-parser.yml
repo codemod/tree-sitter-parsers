@@ -27,6 +27,8 @@ on:
           - php
           - ruby
           - elixir
+          - json
+          - yaml
       platforms:
         description: "Platforms to build for"
         required: true
