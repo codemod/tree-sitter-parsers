@@ -71,6 +71,14 @@
     "elixir": {
       "repo": "https://github.com/elixir-lang/tree-sitter-elixir",
       "ref": "main"
+    },
+    "json": {
+      "repo": "https://github.com/tree-sitter/tree-sitter-json",
+      "ref": "master"
+    },
+    "yaml": {
+      "repo": "https://github.com/ikatyang/tree-sitter-yaml",
+      "ref": "master"
     }
   }
 } 
