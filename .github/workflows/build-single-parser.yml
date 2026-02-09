@@ -29,6 +29,7 @@ on:
           - elixir
           - json
           - yaml
+          - less
       platforms:
         description: "Platforms to build for"
         required: true
