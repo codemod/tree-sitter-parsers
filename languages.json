@@ -79,6 +79,10 @@
     "yaml": {
       "repo": "https://github.com/tree-sitter-grammars/tree-sitter-yaml",
       "ref": "v0.7.1"
+    },
+    "less": {
+      "repo": "https://github.com/jimliang/tree-sitter-less",
+      "ref": "v1.0.0"
     }
   }
 } 
