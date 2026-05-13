@@ -112,8 +112,10 @@ jobs:
         run: |
           repo_url=$(jq -r ".languages[\"${{ matrix.language }}\"].repo" languages.json)
           ref=$(jq -r ".languages[\"${{ matrix.language }}\"].ref" languages.json)
+          grammar_dir=$(jq -r ".languages[\"${{ matrix.language }}\"].grammar_dir // \"\"" languages.json)
           echo "repo_url=$repo_url" >> $GITHUB_OUTPUT
           echo "ref=$ref" >> $GITHUB_OUTPUT
+          echo "grammar_dir=$grammar_dir" >> $GITHUB_OUTPUT
 
       - name: Make scripts executable
         shell: bash
@@ -131,7 +133,7 @@ jobs:
             node:18-alpine \
             sh -c "
               apk add --no-cache git bash tree-sitter-cli build-base &&
-              ./scripts/build-parser.sh '${{ matrix.language }}' '${{ steps.lang-info.outputs.repo_url }}' '${{ steps.lang-info.outputs.ref }}' 'artifacts' '${{ matrix.arch }}' '${{ matrix.platform }}' '${{ matrix.cross_compile }}'
+              ./scripts/build-parser.sh '${{ matrix.language }}' '${{ steps.lang-info.outputs.repo_url }}' '${{ steps.lang-info.outputs.ref }}' 'artifacts' '${{ matrix.arch }}' '${{ matrix.platform }}' '${{ matrix.cross_compile }}' '${{ steps.lang-info.outputs.grammar_dir }}'
             "
         env:
           TREE_SITTER_ABI_VERSION: ${{ env.TREE_SITTER_ABI_VERSION }}
@@ -140,7 +142,7 @@ jobs:
         if: matrix.os != 'ubuntu-latest' || matrix.arch != 'arm64'
         shell: bash
         run: |
-          ./scripts/build-parser.sh "${{ matrix.language }}" "${{ steps.lang-info.outputs.repo_url }}" "${{ steps.lang-info.outputs.ref }}" "artifacts" "${{ matrix.arch }}" "${{ matrix.platform }}" "${{ matrix.cross_compile }}"
+          ./scripts/build-parser.sh "${{ matrix.language }}" "${{ steps.lang-info.outputs.repo_url }}" "${{ steps.lang-info.outputs.ref }}" "artifacts" "${{ matrix.arch }}" "${{ matrix.platform }}" "${{ matrix.cross_compile }}" "${{ steps.lang-info.outputs.grammar_dir }}"
         env:
           TREE_SITTER_ABI_VERSION: ${{ env.TREE_SITTER_ABI_VERSION }}
           # Set cross-compilation flags for macOS x86_64

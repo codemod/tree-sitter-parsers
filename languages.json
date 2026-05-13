@@ -86,7 +86,8 @@
     },
     "xml": {
       "repo": "https://github.com/tree-sitter-grammars/tree-sitter-xml",
-      "ref": "v0.7.0"
+      "ref": "v0.7.0",
+      "grammar_dir": "xml"
     }
   }
-} 
+}

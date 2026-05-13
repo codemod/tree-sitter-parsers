@@ -10,6 +10,7 @@ OUTPUT_DIR="${4:-artifacts}"
 TARGET_ARCH="$5"
 TARGET_PLATFORM="$6"
 CROSS_COMPILE="$7"
+GRAMMAR_DIR_FILTER="$8"
 
 if [ -z "$LANGUAGE" ] || [ -z "$REPO_URL" ]; then
     echo "Usage: $0 <language> <repo_url> [ref] [output_dir] [target_arch] [target_platform] [cross_compile]"
@@ -38,8 +39,17 @@ cd "$TEMP_DIR/repo"
 COMMIT_SHA=$(git rev-parse HEAD)
 echo "Commit SHA: $COMMIT_SHA"
 
-# Find all grammar.js files (excluding node_modules and .build directories)
-GRAMMAR_FILES=$(find . -name "grammar.js" -not -path "./node_modules/*" -not -path "./.build/*")
+# Find grammar.js files (excluding node_modules and .build directories).
+if [ -n "$GRAMMAR_DIR_FILTER" ]; then
+    GRAMMAR_FILE="./${GRAMMAR_DIR_FILTER%/}/grammar.js"
+    if [ ! -f "$GRAMMAR_FILE" ]; then
+        echo "Configured grammar_dir does not contain grammar.js: $GRAMMAR_DIR_FILTER"
+        exit 1
+    fi
+    GRAMMAR_FILES="$GRAMMAR_FILE"
+else
+    GRAMMAR_FILES=$(find . -name "grammar.js" -not -path "./node_modules/*" -not -path "./.build/*")
+fi
 
 if [ -z "$GRAMMAR_FILES" ]; then
     echo "No grammar.js files found in repository"
@@ -204,4 +214,4 @@ while IFS= read -r grammar_file; do
     
 done <<< "$GRAMMAR_FILES"
 
-echo "Build completed for $LANGUAGE" 
+echo "Build completed for $LANGUAGE"
