@@ -30,6 +30,7 @@ on:
           - json
           - yaml
           - less
+          - xml
       platforms:
         description: "Platforms to build for"
         required: true

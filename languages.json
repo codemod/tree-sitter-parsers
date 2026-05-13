@@ -83,6 +83,10 @@
     "less": {
       "repo": "https://github.com/jimliang/tree-sitter-less",
       "ref": "v1.0.0"
+    },
+    "xml": {
+      "repo": "https://github.com/tree-sitter-grammars/tree-sitter-xml",
+      "ref": "v0.7.0"
     }
   }
 } 
