@@ -93,6 +93,25 @@ patch_xml_scanner() {
         }
         mv "$scanner_file.tmp" "$scanner_file"
     fi
+
+    if grep -q "array_delete(&array_pop(tags));" "$scanner_file"; then
+        echo "Patching XML scanner tag stack pop cleanup..."
+        awk '
+            $0 == "        array_delete(&array_pop(tags));" {
+                print "        String tag = array_pop(tags);"
+                print "        array_delete(&tag);"
+                patched += 1
+                next
+            }
+            { print }
+            END { if (patched != 2) exit 1 }
+        ' "$scanner_file" > "$scanner_file.tmp" || {
+            echo "XML scanner tag stack pop cleanup block not found"
+            rm -f "$scanner_file.tmp"
+            exit 1
+        }
+        mv "$scanner_file.tmp" "$scanner_file"
+    fi
 }
 
 # Install npm dependencies if package.json exists
