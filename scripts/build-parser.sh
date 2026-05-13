@@ -59,6 +59,42 @@ fi
 echo "Found grammar.js files:"
 echo "$GRAMMAR_FILES"
 
+patch_xml_scanner() {
+    local scanner_file="src/scanner.c"
+
+    if [ "$LANGUAGE" != "xml" ] || [ ! -f "$scanner_file" ]; then
+        return
+    fi
+
+    if grep -q "array_delete(tags);" "$scanner_file"; then
+        echo "Patching XML scanner deserialize state reset..."
+        awk '
+            {
+                print
+                if ($0 == "    array_delete(tags);") {
+                    getline blank
+                    getline next_line
+                    if (blank == "" && next_line == "    if (length == 0) return;") {
+                        print "    array_init(tags);"
+                        print blank
+                        print next_line
+                        patched = 1
+                        next
+                    }
+                    print blank
+                    print next_line
+                }
+            }
+            END { if (!patched) exit 1 }
+        ' "$scanner_file" > "$scanner_file.tmp" || {
+            echo "XML scanner deserialize block not found"
+            rm -f "$scanner_file.tmp"
+            exit 1
+        }
+        mv "$scanner_file.tmp" "$scanner_file"
+    fi
+}
+
 # Install npm dependencies if package.json exists
 if [ -f "package.json" ]; then
     echo "Installing npm dependencies..."
@@ -77,6 +113,8 @@ while IFS= read -r grammar_file; do
         echo "Generating parser..."
         tree-sitter generate
     fi
+
+    patch_xml_scanner
     
     # Determine the actual language name from the directory structure
     # For cases like typescript/tsx subdirectories
