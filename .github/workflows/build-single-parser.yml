@@ -31,6 +31,7 @@ on:
           - yaml
           - less
           - xml
+          - toml
       platforms:
         description: "Platforms to build for"
         required: true
