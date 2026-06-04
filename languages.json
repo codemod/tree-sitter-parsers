@@ -88,6 +88,10 @@
       "repo": "https://github.com/tree-sitter-grammars/tree-sitter-xml",
       "ref": "v0.7.0",
       "grammar_dir": "xml"
+    },
+    "toml": {
+      "repo": "https://github.com/tree-sitter-grammars/tree-sitter-toml",
+      "ref": "v0.7.0"
     }
   }
 }
