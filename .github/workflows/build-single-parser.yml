@@ -17,6 +17,7 @@ on:
           - angular
           - java
           - kotlin
+          - groovy
           - scala
           - python
           - go

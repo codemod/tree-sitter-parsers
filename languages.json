@@ -32,6 +32,10 @@
       "repo": "https://github.com/fwcd/tree-sitter-kotlin",
       "ref": "main"
     },
+    "groovy": {
+      "repo": "https://github.com/murtaza64/tree-sitter-groovy",
+      "ref": "main"
+    },
     "scala": {
       "repo": "https://github.com/tree-sitter/tree-sitter-scala",
       "ref": "master"
