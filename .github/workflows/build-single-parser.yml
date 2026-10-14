@@ -33,6 +33,7 @@ on:
           - less
           - xml
           - toml
+          - sql
       platforms:
         description: "Platforms to build for"
         required: true

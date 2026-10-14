@@ -93,6 +93,10 @@
       "ref": "v0.7.0",
       "grammar_dir": "xml"
     },
+    "sql": {
+      "repo": "https://github.com/DerekStride/tree-sitter-sql",
+      "ref": "39fdb006403747241244326e8af3b3e96b85381c"
+    },
     "toml": {
       "repo": "https://github.com/tree-sitter-grammars/tree-sitter-toml",
       "ref": "v0.7.0"
