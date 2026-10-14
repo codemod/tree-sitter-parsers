@@ -31,7 +31,13 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 
 # Clone the repository
 echo "Cloning repository..."
-git clone --depth 1 --branch "$REF" "$REPO_URL" "$TEMP_DIR/repo"
+if [[ "$REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    git init "$TEMP_DIR/repo"
+    git -C "$TEMP_DIR/repo" fetch --depth 1 "$REPO_URL" "$REF"
+    git -C "$TEMP_DIR/repo" checkout --detach FETCH_HEAD
+else
+    git clone --depth 1 --branch "$REF" "$REPO_URL" "$TEMP_DIR/repo"
+fi
 
 cd "$TEMP_DIR/repo"
 
